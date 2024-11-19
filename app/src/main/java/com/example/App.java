@@ -4,9 +4,12 @@
 package com.example;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.Properties;
+
+import java.sql.Statement;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
@@ -75,14 +78,54 @@ public class App {
             Connection conn = DriverManager.getConnection(jdbcUrl, props);
             System.out.println("Connected successfully!");
 
-            // Perform a test query
-            ResultSet rs = conn.createStatement().executeQuery("SELECT current_database(), current_user");
-            if (rs.next()) {
-                System.out.println("Connected to database: " + rs.getString(1));
-                System.out.println("As user: " + rs.getString(2));
+            // Get database metadata
+            DatabaseMetaData dbMetaData = conn.getMetaData();
+
+            // Specify the types of objects to retrieve (e.g., "TABLE")
+            String[] types = { "TABLE" };
+
+            // Retrieve the tables metadata
+            ResultSet tables = dbMetaData.getTables(null, null, "%", types);
+
+            while (tables.next()) {
+                String tableCatalog = tables.getString("TABLE_CAT");
+                String tableSchema = tables.getString("TABLE_SCHEM");
+                String tableName = tables.getString("TABLE_NAME");
+                String tableType = tables.getString("TABLE_TYPE");
+                String remarks = tables.getString("REMARKS");
+
+                System.out.println("Table: " + tableName + " (" + tableType + ")");
+                System.out.println(" - Catalog: " + tableCatalog);
+                System.out.println(" - Schema: " + tableSchema);
+                System.out.println(" - Remarks: " + remarks);
+
+                // If you want to perform a query on this table
+                Statement stmt = conn.createStatement();
+                String sql = "SELECT * FROM \"" + tableName + "\""; // Enclose tableName in quotes to handle special characters
+                ResultSet rs = stmt.executeQuery(sql);
+
+                // Process the result set (example: print the data)
+                while (rs.next()) {
+                    // Get column count
+                    int columnCount = rs.getMetaData().getColumnCount();
+
+                    // Loop through each column
+                    for (int i = 1; i <= columnCount; i++) {
+                        String columnValue = rs.getString(i);
+                        System.out.print(columnValue + "\t");
+                    }
+                    System.out.println();
+                }
+
+                rs.close();
+                stmt.close();
             }
 
+            tables.close();
             conn.close();
+
+            System.out.println("Data retrieval completed successfully!");
+
         } catch (Exception e) {
             System.err.println("Connection failed!");
             e.printStackTrace();
